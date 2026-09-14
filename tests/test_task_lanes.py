@@ -7,10 +7,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-
-if "psutil" not in sys.modules:
-    import types
-    sys.modules["psutil"] = types.ModuleType("psutil")
+from unittest.mock import patch
 
 from mikazuki.tasks import LANE_MAINTENANCE, TaskManager, TaskStatus
 
@@ -19,6 +16,25 @@ def _wait_status(task, statuses, timeout=30.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         if task.status in statuses:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _wait_persisted(path: Path, task_id: str, status: str, timeout=30.0) -> bool:
+    """Wait until the persist file records the task's terminal status.
+
+    The worker's trailing _persist() is its last action before going idle, so
+    once the terminal state is on disk there is no child process or background
+    write left that could outlive the test's temp dir.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            payload = {r["task_id"]: r for r in json.loads(path.read_text(encoding="utf-8"))}
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        if payload.get(task_id, {}).get("status") == status:
             return True
         time.sleep(0.05)
     return False
@@ -37,6 +53,9 @@ class ComputeLaneQueueTests(unittest.TestCase):
 
         self.assertEqual(b.status, TaskStatus.QUEUED)
         tm.submit(b)
+        # Wait until the worker has dequeued "a"; only then is b's position
+        # deterministically 1 (otherwise the queue may still read [a, b]).
+        self.assertTrue(_wait_status(a, {TaskStatus.RUNNING}))
         self.assertEqual(tm.queue_position("b"), 1)
 
         self.assertTrue(_wait_status(b, {TaskStatus.FINISHED}))
@@ -100,6 +119,8 @@ class ComputeLaneQueueTests(unittest.TestCase):
         b = tm.create_task([sys.executable, "-c", "pass"], dict(os.environ), task_id="b")
         tm.submit(b)
 
+        # Same dequeue race as above: wait for the worker to pick up "a".
+        self.assertTrue(_wait_status(a, {TaskStatus.RUNNING}))
         dump = {entry["id"]: entry for entry in tm.dump()}
         self.assertEqual(dump["a"]["lane"], "compute")
         self.assertEqual(dump["b"]["queue_position"], 1)
@@ -144,6 +165,48 @@ class QueuePersistenceTests(unittest.TestCase):
         self.assertNotIn("HF_TOKEN", record["env"])
         self.assertEqual(record["env"]["NORMAL"], "ok")
 
+    def test_atomic_replace_recovers_from_transient_windows_lock(self):
+        """WinError 5 on the queue rename must not silently drop the snapshot.
+
+        Defender / the indexer can hold a momentary handle on the freshly
+        written target; _atomic_replace retries briefly and lands the swap.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td) / "task_queue.json.tmp"
+            path = Path(td) / "task_queue.json"
+            tmp.write_text("[snapshotted]", encoding="utf-8")
+
+            attempts = {"n": 0}
+            real_replace = os.replace
+
+            def flaky_replace(src, dst):
+                attempts["n"] += 1
+                if attempts["n"] <= 2:  # two "Defender is scanning" misses
+                    raise PermissionError(5, "Access is denied", str(dst))
+                real_replace(src, dst)
+
+            with patch("mikazuki.tasks.os.replace", flaky_replace):
+                TaskManager._atomic_replace(tmp, path)
+            self.assertEqual(attempts["n"], 3)
+            self.assertEqual(path.read_text(encoding="utf-8"), "[snapshotted]")
+            self.assertFalse(tmp.exists())
+
+    def test_atomic_replace_exhausts_budget_and_persist_stays_quiet(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "task_queue.json"
+            tmp = path.with_name("task_queue.json.tmp")
+            tmp.write_text("x", encoding="utf-8")
+
+            def always_locked(src, dst):
+                raise PermissionError(5, "Access is denied", str(dst))
+
+            with patch("mikazuki.tasks.os.replace", always_locked):
+                with self.assertRaises(PermissionError):
+                    TaskManager._atomic_replace(tmp, path)
+                # End-to-end: _persist converts the exhausted retry into a
+                # warning log, never an exception escaping task submission.
+                TaskManager(persist_path=path)._persist()
+
     def test_queued_task_survives_restore(self):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "task_queue.json"
@@ -181,11 +244,16 @@ class QueuePersistenceTests(unittest.TestCase):
             self.assertEqual(interrupted.status, TaskStatus.FAILED)
             self.assertIn("restart", interrupted.metadata.get("error", ""))
 
-            # After manual resume the restored queue entry runs to completion.
+            # After manual resume the restored queue entry runs to completion;
+            # wait for tm2's trailing persist so its worker is fully idle.
             self.assertTrue(tm2.resume_task("b"))
             self.assertTrue(_wait_status(tm2.tasks["b"], {TaskStatus.FINISHED}))
+            self.assertTrue(_wait_persisted(path, "b", "FINISHED"))
             tm1.terminate_task("a")  # clean up the long sleeper
-            self.assertTrue(_wait_status(a, {TaskStatus.TERMINATED}))
+            # Status is set before the kill lands; the worker's trailing
+            # persist (a -> TERMINATED) is its last write, wait for it so no
+            # child/background write outlives the temp dir (Windows cleanup).
+            self.assertTrue(_wait_persisted(path, "a", "TERMINATED"))
 
     def test_restore_corrupt_file_degrades_to_empty(self):
         with tempfile.TemporaryDirectory() as td:
@@ -300,6 +368,9 @@ class RetryTests(unittest.TestCase):
 
             self.assertIsNotNone(retried)
             self.assertEqual(retried[0].environ["PYTHONPATH"], "/srv/project")
+            # Let the retried task run out and the worker's persist land before
+            # the temp dir is cleaned.
+            self.assertTrue(_wait_persisted(path, retried[0].task_id, "FINISHED"))
 
 
 if __name__ == "__main__":

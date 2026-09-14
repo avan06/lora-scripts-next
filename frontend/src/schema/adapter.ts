@@ -99,6 +99,13 @@ function description(meta: Schema["meta"] | undefined) {
   return meta?.description?.["zh-CN"] || meta?.description?.[""]
 }
 
+function explicitDefault(schema: SchemaRecord) {
+  if (!Object.prototype.hasOwnProperty.call(schema.meta ?? {}, "default")) return undefined
+  const value = schema.meta.default as FormValue
+  if (schema.type === "array" && Array.isArray(value) && value.length === 0) return undefined
+  return value
+}
+
 function conditionsFrom(schema: SchemaRecord): FormCondition[] {
   if (schema.type === "object") {
     return Object.entries(schema.dict ?? {})
@@ -115,7 +122,7 @@ function fieldFrom(key: string, schema: SchemaRecord, conditions: FormCondition[
       key,
       type: "string",
       description: description(schema.meta),
-      defaultValue: schema.meta.default as FormValue,
+      defaultValue: explicitDefault(schema),
       required: schema.meta.required,
       hidden: schema.meta.hidden,
       disabled: schema.meta.disabled,
@@ -130,7 +137,7 @@ function fieldFrom(key: string, schema: SchemaRecord, conditions: FormCondition[
     description: description(schema.meta),
     role: schema.meta.role,
     extra: schema.meta.extra,
-    defaultValue: (schema.meta.default ?? (schema.type === "array" ? [] : undefined)) as FormValue,
+    defaultValue: explicitDefault(schema),
     constValue: schema.value,
     required: schema.meta.required,
     hidden: schema.meta.hidden,
@@ -190,9 +197,50 @@ export function isFieldActive(field: FormField, model: FormModel) {
   return field.conditions.every((condition) => model[condition.key] === condition.value)
 }
 
-export function isAnimaFastTorchCompileBlocked(model: FormModel) {
-  const attnMode = typeof model.attn_mode === "string" ? model.attn_mode.trim() : ""
-  return !attnMode || attnMode === "torch"
+export function isAnimaFastTorchCompileBlocked(schema: AdaptedSchema, model: FormModel) {
+  if (schema.name !== "anima-lora-fast") return false
+  const attnMode = String(model.attn_mode ?? "").trim().toLowerCase()
+  return attnMode === "" || attnMode === "torch"
+}
+
+export interface NormalizeModelOptions {
+  explicitKeys?: ReadonlySet<string>
+}
+
+export function hasFormValue(value: unknown) {
+  if (value === undefined || value === null) return false
+  if (typeof value === "string" && ["", "undefined", "null", "nan"].includes(value.trim().toLowerCase())) return false
+  return !Array.isArray(value) || value.length > 0
+}
+
+function fieldDefault(schema: AdaptedSchema, key: string) {
+  const field = schema.sections.flatMap((section) => section.fields).find((item) => item.key === key && item.defaultValue !== undefined)
+  return field?.defaultValue
+}
+
+export function normalizeModelForSchema(schema: AdaptedSchema, model: FormModel, options: NormalizeModelOptions = {}) {
+  const normalized = cloneFormModel(model)
+  if (schema.name === "anima-lora-fast") {
+    const explicitMode = options.explicitKeys?.has("training_duration_mode")
+      && (normalized.training_duration_mode === "epoch" || normalized.training_duration_mode === "steps")
+      ? normalized.training_duration_mode
+      : undefined
+    const hasExplicitEpochs = (options.explicitKeys?.has("max_train_epochs") ?? false) && hasFormValue(normalized.max_train_epochs)
+    const hasExplicitSteps = (options.explicitKeys?.has("max_train_steps") ?? false) && hasFormValue(normalized.max_train_steps)
+    const durationMode = options.explicitKeys
+      ? explicitMode ?? (hasExplicitSteps && !hasExplicitEpochs ? "steps" : "epoch")
+      : normalized.training_duration_mode === "steps" ? "steps" : "epoch"
+    normalized.training_duration_mode = durationMode
+    const activeKey = durationMode === "steps" ? "max_train_steps" : "max_train_epochs"
+    const inactiveKey = durationMode === "steps" ? "max_train_epochs" : "max_train_steps"
+    delete normalized[inactiveKey]
+    if (!hasFormValue(normalized[activeKey])) {
+      const defaultValue = fieldDefault(schema, activeKey)
+      if (defaultValue !== undefined) normalized[activeKey] = cloneFormValue(defaultValue)
+    }
+  }
+  if (isAnimaFastTorchCompileBlocked(schema, normalized)) normalized.torch_compile = false
+  return normalized
 }
 
 export function createDefaultModel(schema: AdaptedSchema): FormModel {
@@ -222,7 +270,7 @@ export function serializeModel(schema: AdaptedSchema, model: FormModel) {
   const output: FormModel = {}
   for (const field of schema.sections.flatMap((section) => section.fields)) {
     if (!isFieldActive(field, model)) continue
-    if (field.key === "torch_compile" && isAnimaFastTorchCompileBlocked(model)) {
+    if (field.key === "torch_compile" && isAnimaFastTorchCompileBlocked(schema, model)) {
       output[field.key] = false
       continue
     }
@@ -246,8 +294,8 @@ export function validateModel(schema: AdaptedSchema, model: FormModel) {
       errors[field.key] = i18n.global.t("schema.tooLarge", { max: field.max })
     }
   }
-  if (isAnimaFastTorchCompileBlocked(model) && model.torch_compile === true) {
-    errors.torch_compile = "attn_mode=torch cannot be combined with torch_compile=true (#336); disable torch_compile or choose a supported attention mode"
+  if (isAnimaFastTorchCompileBlocked(schema, model) && model.torch_compile === true) {
+    errors.torch_compile = i18n.global.t("training.diagnostics.animaFastTorchCompile")
   }
   return errors
 }

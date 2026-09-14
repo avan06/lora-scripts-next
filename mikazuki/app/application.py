@@ -114,6 +114,19 @@ async def app_startup():
 
     asyncio.create_task(_async_update_check())
 
+    # Re-activate marketplace plugins the user left enabled: their runtimes
+    # are child processes that died with the previous host process, so without
+    # this the floating panel shows a still-enabled plugin as "not ready"
+    # until a manual restart. Fire-and-forget — a plugin runtime can take up
+    # to its startup timeout, and a broken one must never block app startup.
+    from mikazuki.plugin_marketplace.api import startup_apply_trust_update, startup_resume_enabled
+
+    # P1-5: chain-verified trust update (rotation/revocation) BEFORE plugin
+    # resume, so everything that follows verifies against the new trust.
+    # Fast file IO; never raises (a broken update keeps the shipped trust).
+    startup_apply_trust_update()
+    asyncio.create_task(asyncio.to_thread(startup_resume_enabled))
+
     if sys.platform == "win32" and os.environ.get("MIKAZUKI_DEV", "0") != "1":
         from mikazuki.log import log as app_log
 

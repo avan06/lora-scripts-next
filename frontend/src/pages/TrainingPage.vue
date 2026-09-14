@@ -9,7 +9,7 @@ import ModelAssetsTools from "../components/ModelAssetsTools.vue"
 import SectionToc from "../components/SectionToc.vue"
 import { schemasApi } from "../api/schemas"
 import { trainingApi, type TrainingPreset, type TrainingStart } from "../api/training"
-import { applyReadonlyDefaults, cloneFormModel, createDefaultModel, isFieldActive, serializeModel, validateModel, type AdaptedSchema, type FormField, type FormModel } from "../schema/adapter"
+import { applyReadonlyDefaults, cloneFormModel, cloneFormValue, createDefaultModel, hasFormValue, isFieldActive, normalizeModelForSchema, serializeModel, validateModel, type AdaptedSchema, type FormField, type FormModel } from "../schema/adapter"
 import { loadTrainingSchema } from "../schema/loader"
 import { buildTrainingConfig, checkTrainingConfig, hydrateImportedConfig, pickCarryOverFields, sanitizePersistedDraft } from "../training/params"
 import { moduleForTrainType } from "../training/modules"
@@ -23,6 +23,7 @@ const router = useRouter()
 const { t } = useI18n()
 const schema = ref<AdaptedSchema>()
 const model = ref<FormModel>({})
+const effectiveDefaults = ref<FormModel>({})
 const loading = ref(true)
 const error = ref("")
 const errors = ref<Record<string, string>>({})
@@ -110,8 +111,20 @@ async function applyImportedConfig(config: FormModel, successMessage?: string) {
     else await router.push(result.target_path)
     return
   }
-  model.value = { ...createDefaultModel(schema.value!), ...hydrateImportedConfig(result.config || config) }
-  applyReadonlyDefaults(schema.value!, model.value, { ...createDefaultModel(schema.value!), ...props.fieldDefaults })
+  const defaults = effectiveDefaults.value
+  const validatedConfig = result.config || config
+  const explicitKeys = new Set(Object.keys(validatedConfig))
+  const importedConfig = hydrateImportedConfig(validatedConfig)
+  model.value = normalizeModelForSchema(schema.value!, { ...cloneFormModel(defaults), ...importedConfig }, { explicitKeys })
+  applyReadonlyDefaults(schema.value!, model.value, defaults)
+  if (
+    props.schemaName === "anima-lora-fast"
+    && importedConfig.training_duration_mode !== "steps"
+    && hasFormValue(importedConfig.max_train_epochs)
+    && hasFormValue(importedConfig.max_train_steps)
+  ) {
+    ElMessage.info(t("training.importMsg.animaFastDurationConflict"))
+  }
   if (result.notice) ElMessage.info(result.notice)
   ElMessage.success(successMessage ?? t("training.importMsg.imported"))
 }
@@ -128,17 +141,19 @@ async function load() {
   error.value = ""
   try {
     const loaded = await loadTrainingSchema(props.schemaName)
-    const defaults = { ...createDefaultModel(loaded), ...props.fieldDefaults }
+    const defaults = resolveEffectiveDefaults(loaded)
+    effectiveDefaults.value = cloneFormModel(defaults)
     const carry = readCarryOver()
     sessionStorage.removeItem("mikazuki-carry-over")
     const carried = pickCarryOverFields(carry, defaults, props.fieldDefaults)
-    const base = { ...defaults, ...carried }
+    const base = { ...cloneFormModel(defaults), ...carried }
     try {
       const saved = JSON.parse(localStorage.getItem(autosaveKey()) || "null")
       model.value = saved && typeof saved === "object"
         ? { ...base, ...sanitizePersistedDraft(saved as FormModel, defaults) }
         : base
-    } catch { model.value = base }
+      model.value = normalizeModelForSchema(loaded, model.value)
+    } catch { model.value = normalizeModelForSchema(loaded, base) }
     applyReadonlyDefaults(loaded, model.value, defaults)
     const cards = await schemasApi.graphicCards()
     if (cards.length > 1) {
@@ -154,6 +169,16 @@ async function load() {
     }
   } catch (reason) { error.value = reason instanceof Error ? reason.message : t("training.schemaLoadFail") }
   finally { loading.value = false }
+}
+
+function resolveEffectiveDefaults(loaded: AdaptedSchema) {
+  const defaults = createDefaultModel(loaded)
+  for (const [key, value] of Object.entries(props.fieldDefaults || {})) defaults[key] = cloneFormValue(value)
+  return defaults
+}
+
+function updateModel(next: FormModel) {
+  model.value = schema.value ? normalizeModelForSchema(schema.value, next) : next
 }
 
 function validate() {
@@ -189,7 +214,7 @@ async function openPresets() {
 }
 
 function applyPreset(preset: TrainingPreset) {
-  model.value = { ...model.value, ...preset.data }
+  model.value = normalizeModelForSchema(schema.value!, { ...model.value, ...preset.data })
   presetsOpen.value = false
   ElMessage.success(t("training.presetsDialog.applied", { name: preset.metadata.name }))
 }
@@ -238,6 +263,11 @@ async function submit() {
       if (!preflight.ok) throw new Error(preflight.errors?.join("\n") || t("training.submitConfirm.preflightFail"))
       preflight.warnings?.forEach((warning) => ElMessage.warning(warning))
     }
+    if (props.schemaName === "klein-lora") {
+      const preflight = await trainingApi.aiToolkitPreflight(output.value)
+      if (!preflight.ok) throw new Error(preflight.errors?.join("\n") || t("training.submitConfirm.preflightFail"))
+      preflight.warnings?.forEach((warning) => ElMessage.warning(warning))
+    }
     started.value = await trainingApi.run(output.value)
     tasksStore.markAttention()
     tasksStore.refresh({ silent: true })
@@ -254,15 +284,23 @@ async function resetConfig() {
     await ElMessageBox.confirm(t("training.actions.resetConfirm"), t("training.resetDialog.title"), { confirmButtonText: t("training.actions.reset"), cancelButtonText: t("training.resetDialog.cancel"), type: "warning" })
   } catch { return }
   localStorage.removeItem(autosaveKey())
-  model.value = { ...createDefaultModel(schema.value), ...props.fieldDefaults }
-  applyReadonlyDefaults(schema.value, model.value, { ...createDefaultModel(schema.value), ...props.fieldDefaults })
+  model.value = normalizeModelForSchema(schema.value, effectiveDefaults.value)
+  applyReadonlyDefaults(schema.value, model.value, effectiveDefaults.value)
   ElMessage.success(t("training.actions.resetDone"))
+}
+
+function resetField(key: string) {
+  if (!schema.value) return
+  const next = { ...model.value, [key]: cloneFormValue(effectiveDefaults.value[key]) }
+  applyReadonlyDefaults(schema.value, next, effectiveDefaults.value)
+  model.value = normalizeModelForSchema(schema.value, next)
+  errors.value = validateModel(schema.value, model.value)
 }
 
 function applyHistory(row: FormModel) {
   if (!schema.value) return
-  const defaults = { ...createDefaultModel(schema.value), ...props.fieldDefaults }
-  model.value = { ...defaults, ...sanitizePersistedDraft(row, defaults) }
+  const defaults = effectiveDefaults.value
+  model.value = normalizeModelForSchema(schema.value, { ...cloneFormModel(defaults), ...sanitizePersistedDraft(row, defaults) })
   applyReadonlyDefaults(schema.value, model.value, defaults)
   historyOpen.value = false
 }
@@ -288,11 +326,29 @@ async function stopTraining() {
   }
 }
 
+// Mirror the current form to the host so the agent side (training_config_current
+// host tool) can read the paths the user already filled in. Debounced; silent.
+let hostSyncTimer: number | undefined
+function currentForm() { return schema.value ? rawConfig.value : model.value }
+function pushParamsToHost() {
+  void trainingApi.saveParams(props.schemaName, currentForm()).catch(() => {})
+}
+function scheduleHostSync() {
+  if (hostSyncTimer) window.clearTimeout(hostSyncTimer)
+  hostSyncTimer = window.setTimeout(() => { hostSyncTimer = undefined; pushParamsToHost() }, 800)
+}
+
 watch(() => props.schemaName, () => { started.value = undefined; loadHistory(); load() })
-watch(model, (value) => localStorage.setItem(autosaveKey(), JSON.stringify(value)), { deep: true })
+watch(model, (value) => { localStorage.setItem(autosaveKey(), JSON.stringify(value)); scheduleHostSync() }, { deep: true })
 watch(previewCollapsed, (value) => persistPreviewCollapsed(value))
 onMounted(() => { migrateLegacyStorage(); loadHistory(); load(); tasksStore.refresh(); tasksTimer = window.setInterval(() => tasksStore.refresh({ silent: true }), 2000) })
-onBeforeUnmount(() => { window.clearInterval(tasksTimer); localStorage.setItem(autosaveKey(), JSON.stringify(model.value)); sessionStorage.setItem("mikazuki-carry-over", JSON.stringify(model.value)) })
+onBeforeUnmount(() => {
+  window.clearInterval(tasksTimer)
+  if (hostSyncTimer) { window.clearTimeout(hostSyncTimer); hostSyncTimer = undefined }
+  localStorage.setItem(autosaveKey(), JSON.stringify(model.value))
+  sessionStorage.setItem("mikazuki-carry-over", JSON.stringify(model.value))
+  pushParamsToHost()
+})
 </script>
 
 <template>
@@ -306,7 +362,7 @@ onBeforeUnmount(() => { window.clearInterval(tasksTimer); localStorage.setItem(a
           <slot name="form-top" />
           <div v-if="loading" class="schema-state"><strong>{{ t("training.loadingSchema") }}</strong><span>{{ t("training.loadingSchemaHint") }}</span></div>
           <div v-else-if="error" class="schema-state schema-error"><strong>{{ t("training.schemaError") }}</strong><span>{{ error }}</span><button @click="load">{{ t("training.retry") }}</button></div>
-          <DynamicSchemaForm v-else-if="schema" v-model="model" :schema="schema" :errors="errors">
+          <DynamicSchemaForm v-else-if="schema" :model-value="model" :schema="schema" :errors="errors" :effective-defaults="effectiveDefaults" @update:model-value="updateModel" @reset-field="resetField">
         <template #[modelToolsSlot]>
           <ModelAssetsTools :schema-name="schemaName" :model="model" />
         </template>

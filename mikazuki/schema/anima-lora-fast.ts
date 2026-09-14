@@ -16,7 +16,7 @@ Schema.intersect([
         timestep_sampling: Schema.union(["sigma", "uniform", "sigmoid", "shift", "flux_shift"]).default("shift").description("时间步采样"),
         discrete_flow_shift: Schema.number().step(0.001).default(3.0).description("Rectified Flow 位移"),
         attn_mode: Schema.union(["", "torch", "xformers", "sageattn", "flash"]).default("").description("Attention 加速实现。留空使用 torch 保底，避免 flash-attn 缺失导致预检查失败；手动选择 flash 需要插件环境已安装 flash-attn 且显卡支持"),
-        torch_compile: Schema.boolean().default(false).description("启用 torch.compile；attn_mode=torch 时不可用（#336）"),
+        torch_compile: Schema.boolean().default(false).description("启用 torch.compile；attn_mode=torch 或留空时自动关闭（#336）"),
         compile_dynamic_seq: Schema.boolean().default(true).description("按 free-fit bucket 动态编译序列长度；开启 torch.compile 时必须启用"),
     }).description("Anima Fast 参数"),
 
@@ -44,15 +44,26 @@ Schema.intersect([
         progress_jsonl: Schema.string().hidden(),
     }).description("日志与监控"),
 
-    Schema.object({
-        max_train_epochs: Schema.number().min(1).default(1).description("最大训练 epoch；设置后 Anima 会按 epoch 和 dataloader 长度重算 step"),
-        max_train_steps: Schema.number().min(1).description("最大训练 step；仅在 max_train_epochs 为空时按 step 控制"),
-        train_batch_size: Schema.number().min(1).default(1).description("批量大小"),
-        dataset_repeats: Schema.number().min(1).default(1).description("数据集重复次数"),
-        gradient_checkpointing: Schema.boolean().default(true).description("梯度检查点（省显存）"),
-        gradient_accumulation_steps: Schema.number().min(1).default(1).description("梯度累加步数"),
-        seed: Schema.number().step(1).default(42).description("随机种子"),
-    }).description("训练相关参数"),
+    Schema.intersect([
+        Schema.object({
+            training_duration_mode: Schema.union(["epoch", "steps"]).default("epoch").description("训练时长模式"),
+            train_batch_size: Schema.number().min(1).default(1).description("批量大小"),
+            dataset_repeats: Schema.number().min(1).default(1).description("数据集重复次数"),
+            gradient_checkpointing: Schema.boolean().default(true).description("梯度检查点（省显存）"),
+            gradient_accumulation_steps: Schema.number().min(1).default(1).description("梯度累加步数"),
+            seed: Schema.number().step(1).default(42).description("随机种子"),
+        }),
+        Schema.union([
+            Schema.object({
+                training_duration_mode: Schema.const("epoch").required(),
+                max_train_epochs: Schema.number().min(1).default(1).description("最大训练 epoch；Anima 会按 epoch 和 dataloader 长度重算 step"),
+            }),
+            Schema.object({
+                training_duration_mode: Schema.const("steps").required(),
+                max_train_steps: Schema.number().min(1).default(100).description("最大训练 step"),
+            }),
+        ]),
+    ]).description("训练相关参数"),
 
     SHARED_SCHEMAS.ANIMA_FAST_LR_OPTIMIZER,
 
@@ -86,6 +97,7 @@ Schema.intersect([
         network_dim: Schema.number().min(1).default(16).description("LoRA 维度"),
         network_alpha: Schema.number().min(1).default(16).description("LoRA alpha"),
         network_dropout: Schema.number().step(0.01).default(0).description("LoRA dropout"),
+        network_train_unet_only: Schema.boolean().default(true).description("仅训练 U-Net / DiT；关闭后可训练 text encoder LoRA（不能同时使用文本编码缓存）"),
         network_args_custom: Schema.array(String).role('table').description("高级项：自定义 network_args，一行一个 key=value；这是传给 anima_lora LoRA 网络模块的参数列表，不是顶层 TOML。新手谨慎使用；Fast 仅允许 rank_dropout、module_dropout、loraplus_lr_ratio、loraplus_unet_lr_ratio、loraplus_text_encoder_lr_ratio，不支持的 key 会中止训练"),
     }).description("网络设置"),
 ])

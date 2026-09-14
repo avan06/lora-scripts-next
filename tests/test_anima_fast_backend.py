@@ -5,9 +5,10 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from mikazuki.anima_fast_backend import preflight as preflight_module
-from mikazuki.anima_fast_backend.adapter import (
+from mikazuki.engines.anima_fast import preflight as preflight_module
+from mikazuki.engines.anima_fast.adapter import (
     AdapterError,
     adapt_config,
     dataset_cache_slug,
@@ -15,7 +16,7 @@ from mikazuki.anima_fast_backend.adapter import (
     dump_fast_dataset_toml,
     ensure_fast_run_log_dirs,
 )
-from mikazuki.anima_fast_backend.extension_state import (
+from mikazuki.engines.anima_fast.extension_state import (
     STATE_BROKEN,
     STATE_INSTALLED_UNVERIFIED,
     STATE_NOT_INSTALLED,
@@ -24,11 +25,11 @@ from mikazuki.anima_fast_backend.extension_state import (
     read_extension_status,
     write_install_state,
 )
-from mikazuki.anima_fast_backend.installer import build_install_plan, copy_source_snapshot, remove_extension
-from mikazuki.anima_fast_backend.launcher import build_launch_spec
-from mikazuki.anima_fast_backend.preflight import ProbeFacts, run_preflight
-from mikazuki.anima_fast_backend.service_resolver import LegacyServiceResolverShim, RegistryServiceResolver
-from mikazuki.anima_fast_backend.settings import RuntimeConfig
+from mikazuki.engines.anima_fast.installer import build_install_plan, copy_source_snapshot, remove_extension
+from mikazuki.engines.anima_fast.launcher import build_launch_spec
+from mikazuki.engines.anima_fast.preflight import ProbeFacts, probe_dit_checkpoint, run_preflight
+from mikazuki.engines.anima_fast.service_resolver import LegacyServiceResolverShim, RegistryServiceResolver
+from mikazuki.engines.anima_fast.settings import RuntimeConfig
 
 
 def make_runtime(root: Path) -> RuntimeConfig:
@@ -151,8 +152,8 @@ class ExtensionStateTests(unittest.TestCase):
         layout.train_py.write_text("", encoding="utf-8")
         (layout.source / "configs").mkdir()
         (layout.source / "configs" / "base.toml").write_text("", encoding="utf-8")
-        (layout.source / "preprocess").mkdir()
-        (layout.source / "preprocess" / "resize_images.py").write_text("", encoding="utf-8")
+        (layout.source / "scripts" / "preprocess").mkdir(parents=True)
+        (layout.source / "scripts" / "preprocess" / "resize_images.py").write_text("", encoding="utf-8")
 
     def test_status_transitions(self):
         with tempfile.TemporaryDirectory() as td:
@@ -183,7 +184,7 @@ class ExtensionStateTests(unittest.TestCase):
 
         self.assertEqual(status.state, STATE_BROKEN)
         self.assertIn("configs/base.toml", status.reason)
-        self.assertIn("preprocess/resize_images.py", status.reason)
+        self.assertIn("scripts/preprocess/resize_images.py", status.reason)
 
 
 class InstallerTests(unittest.TestCase):
@@ -280,6 +281,51 @@ class AdapterTests(unittest.TestCase):
         self.assertNotIn("down_init", adapted.values)
         self.assertNotIn("use_timestep_mask=true", adapted.values.get("network_args", []))
 
+    def test_adapt_config_passes_network_train_unet_only_through(self):
+        with tempfile.TemporaryDirectory() as td:
+            runtime = make_runtime(Path(td))
+            adapted = adapt_config(
+                {
+                    "model_train_type": "anima-lora-fast",
+                    "network_train_unet_only": False,
+                },
+                runtime,
+                "run-1",
+            )
+
+        self.assertIs(adapted.values["network_train_unet_only"], False)
+        self.assertIn("network_train_unet_only = false", dump_flat_toml(adapted.values))
+
+    def test_adapt_config_disables_text_cache_when_training_text_encoder(self):
+        with tempfile.TemporaryDirectory() as td:
+            runtime = make_runtime(Path(td))
+            adapted = adapt_config(
+                {
+                    "model_train_type": "anima-lora-fast",
+                    "network_train_unet_only": False,
+                    "use_text_cache": True,
+                },
+                runtime,
+                "run-1",
+            )
+
+        self.assertIs(adapted.values["use_text_cache"], False)
+        self.assertTrue(any("network_train_unet_only" in w for w in adapted.warnings))
+
+    def test_adapt_config_keeps_text_cache_when_unet_only_default(self):
+        with tempfile.TemporaryDirectory() as td:
+            runtime = make_runtime(Path(td))
+            adapted = adapt_config(
+                {
+                    "model_train_type": "anima-lora-fast",
+                    "use_text_cache": True,
+                },
+                runtime,
+                "run-1",
+            )
+
+        self.assertIs(adapted.values["use_text_cache"], True)
+
     def test_tlora_variant_injects_curated_upstream_flags(self):
         with tempfile.TemporaryDirectory() as td:
             runtime = make_runtime(Path(td))
@@ -308,6 +354,22 @@ class AdapterTests(unittest.TestCase):
         self.assertNotIn("use_timestep_mask=false", adapted.values["network_args"])
         self.assertNotIn("min_rank=8", adapted.values["network_args"])
         self.assertNotIn("alpha_rank_scale=0.25", adapted.values["network_args"])
+
+    def test_tlora_variant_rejects_text_encoder_training(self):
+        with tempfile.TemporaryDirectory() as td:
+            runtime = make_runtime(Path(td))
+            with self.assertRaisesRegex(
+                AdapterError,
+                "fast_variant=tlora.*network_train_unet_only=false",
+            ):
+                adapt_config(
+                    {
+                        "fast_variant": "tlora",
+                        "network_train_unet_only": False,
+                    },
+                    runtime,
+                    "run-1",
+                )
 
     def test_unknown_fast_variant_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
@@ -409,22 +471,113 @@ class AdapterTests(unittest.TestCase):
         self.assertIn("[[datasets.subsets]]", text)
         self.assertIn("num_repeats = 7", text)
 
+    def test_dump_fast_dataset_toml_defaults_to_no_validation_split(self):
+        text = dump_fast_dataset_toml(
+            {
+                "resized_image_dir": "D:/data/resized",
+                "lora_cache_dir": "D:/data/lora",
+            }
+        )
+
+        self.assertIn("validation_split_num = 0", text)
+
+    def test_dump_fast_dataset_toml_respects_explicit_validation_split_num(self):
+        text = dump_fast_dataset_toml(
+            {
+                "resized_image_dir": "D:/data/resized",
+                "lora_cache_dir": "D:/data/lora",
+                "validation_split_num": 8,
+            }
+        )
+
+        self.assertIn("validation_split_num = 8", text)
+
     def test_dataset_cache_slug_from_relative_path(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             slug = dataset_cache_slug(root / "data" / "train_data", root)
         self.assertEqual(slug, "data_train_data")
 
-    def test_adapt_config_warns_when_epochs_override_steps(self):
+    def test_adapt_config_explicit_steps_removes_epochs(self):
+        with tempfile.TemporaryDirectory() as td:
+            runtime = make_runtime(Path(td))
+            adapted = adapt_config({
+                "lora_type": "lora",
+                "training_duration_mode": "steps",
+                "max_train_epochs": 1,
+                "max_train_steps": 100,
+            }, runtime, "run-1")
+
+        self.assertEqual(adapted.values["max_train_steps"], 100)
+        self.assertNotIn("max_train_epochs", adapted.values)
+
+    def test_adapt_config_explicit_steps_defaults_steps_when_missing(self):
+        with tempfile.TemporaryDirectory() as td:
+            runtime = make_runtime(Path(td))
+            adapted = adapt_config({
+                "lora_type": "lora",
+                "training_duration_mode": "steps",
+                "max_train_epochs": 1,
+            }, runtime, "run-1")
+
+        self.assertEqual(adapted.values["max_train_steps"], 100)
+        self.assertNotIn("max_train_epochs", adapted.values)
+
+    def test_adapt_config_explicit_epoch_removes_steps(self):
+        with tempfile.TemporaryDirectory() as td:
+            runtime = make_runtime(Path(td))
+            adapted = adapt_config({
+                "lora_type": "lora",
+                "training_duration_mode": "epoch",
+                "max_train_epochs": 2,
+                "max_train_steps": 100,
+            }, runtime, "run-1")
+
+        self.assertEqual(adapted.values["max_train_epochs"], 2)
+        self.assertNotIn("max_train_steps", adapted.values)
+
+    def test_adapt_config_legacy_step_only_remains_step_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            runtime = make_runtime(Path(td))
+            adapted = adapt_config({
+                "lora_type": "lora",
+                "max_train_steps": 100,
+            }, runtime, "run-1")
+
+        self.assertEqual(adapted.values["max_train_steps"], 100)
+        self.assertNotIn("max_train_epochs", adapted.values)
+
+    def test_adapt_config_legacy_both_chooses_epoch_and_warns(self):
         with tempfile.TemporaryDirectory() as td:
             runtime = make_runtime(Path(td))
             adapted = adapt_config({
                 "lora_type": "lora",
                 "max_train_epochs": 1,
-                "max_train_steps": 1,
+                "max_train_steps": 100,
             }, runtime, "run-1")
 
+        self.assertEqual(adapted.values["max_train_epochs"], 1)
+        self.assertNotIn("max_train_steps", adapted.values)
         self.assertTrue(any("max_train_epochs is set" in warning for warning in adapted.warnings))
+
+    def test_adapt_config_defaults_optimizer_to_adamw(self):
+        for optimizer_type in (None, "", "null", "undefined", "nan"):
+            with self.subTest(optimizer_type=optimizer_type), tempfile.TemporaryDirectory() as td:
+                runtime = make_runtime(Path(td))
+                adapted = adapt_config({
+                    "lora_type": "lora",
+                    "optimizer_type": optimizer_type,
+                }, runtime, "run-1")
+
+                self.assertEqual(adapted.values["optimizer_type"], "AdamW")
+
+    def test_adapt_config_defaults_duration_to_one_epoch(self):
+        with tempfile.TemporaryDirectory() as td:
+            runtime = make_runtime(Path(td))
+            adapted = adapt_config({"lora_type": "lora"}, runtime, "run-1")
+
+        self.assertEqual(adapted.values["max_train_epochs"], 1)
+        self.assertNotIn("max_train_steps", adapted.values)
 
     def test_adapt_config_uses_torch_when_attn_mode_is_empty(self):
         with tempfile.TemporaryDirectory() as td:
@@ -662,9 +815,10 @@ class AdapterTests(unittest.TestCase):
                 "skip_cache_check": True,
             }, runtime, "run-1")
 
-        self.assertTrue(adapted.values["use_vae_cache"])
-        self.assertTrue(adapted.values["use_text_cache"])
-        self.assertTrue(adapted.values["skip_cache_check"])
+        self.assertFalse(adapted.values["use_vae_cache"])
+        self.assertFalse(adapted.values["use_text_cache"])
+        self.assertFalse(adapted.values["skip_cache_check"])
+        self.assertTrue(any("skip_cache_check" in warning for warning in adapted.warnings))
 
     def test_adapt_config_rejects_unsupported_network_args_custom(self):
         with tempfile.TemporaryDirectory() as td:
@@ -1053,6 +1207,18 @@ class PreflightLauncherTests(unittest.TestCase):
                     cuda_available=True,
                 ),
             )
+
+    def test_launch_spec_uses_bnb_cuda130_on_linux_aarch64(self):
+        with tempfile.TemporaryDirectory() as td, \
+            mock.patch("mikazuki.engines.anima_fast.launcher.platform.system", return_value="Linux"), \
+            mock.patch("mikazuki.engines.anima_fast.launcher.platform.machine", return_value="aarch64"):
+            root = Path(td)
+            runtime = make_runtime(root)
+            config = root / "config.toml"
+            config.write_text("", encoding="utf-8")
+            spec = build_launch_spec(runtime, config, "run-1")
+
+        self.assertEqual(spec.env["BNB_CUDA_VERSION"], "130")
 
     def test_probe_dit_checkpoint_recognizes_base_and_29b_depth(self):
         import torch
@@ -1749,6 +1915,30 @@ class PreflightLauncherTests(unittest.TestCase):
 
         self.assertFalse(result.ok)
         self.assertTrue(any("compile_dynamic_seq" in error for error in result.errors))
+
+    def test_preflight_rejects_torch_attention_with_torch_compile(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            runtime = make_runtime(root)
+            for file in ("model.safetensors", "vae.safetensors", "qwen.safetensors"):
+                (root / file).write_text("", encoding="utf-8")
+            dataset = root / "dataset"
+            dataset.mkdir()
+            (dataset / "a.png").write_text("", encoding="utf-8")
+            (dataset / "a.txt").write_text("caption", encoding="utf-8")
+
+            result = run_preflight({
+                "pretrained_model_name_or_path": "model.safetensors",
+                "vae": "vae.safetensors",
+                "qwen3": "qwen.safetensors",
+                "train_data_dir": "dataset",
+                "resolution": "64,64",
+                "attn_mode": "torch",
+                "torch_compile": True,
+            }, runtime, lambda _runtime: ProbeFacts("3.13.11", torch_metadata_version="2.11.0+cu130", cuda_available=True))
+
+        self.assertFalse(result.ok)
+        self.assertTrue(any("attn_mode=torch" in error and "torch_compile=true" in error for error in result.errors))
 
     def test_preflight_rejects_cache_flags_without_preprocess_cache(self):
         with tempfile.TemporaryDirectory() as td:
