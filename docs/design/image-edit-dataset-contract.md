@@ -35,14 +35,15 @@ control_data_dirs 有 ≥1 个非空路径     → 图像编辑（参考张数 =
 
 ### 2.2 UI 形态
 
-- 数据集分区内：目标图路径（现有 filepicker）+「参考图目录 1 / 2 / …」可添加（建议默认最多展示/限制与引擎 capability 对齐，第一版可先 **最多 3** 路，与 AI Toolkit UI 一致）。
+- 数据集分区内：目标图路径（现有 filepicker）+「参考图目录 1 / 2 / …」**可增删**，不写死固定路数；产品上限 **最多 5** 路参考图目录。
 - 文案提示：参考图与目标图 **同名配对**（扩展名可不同）；**参考图不需要 caption**；不填参考图则按文生图训练。
 - 训练预览：仅当存在参考图时，预览项可挂对应 control 图（细节随引擎实施）。
+- **Klein 编辑路径控件**与 AI Toolkit 前端同批落地（见 [#252](https://github.com/wochenlong/lora-scripts-next/issues/252) 更新口径）；Dataset 配对浏览 UI 仍后置。
 
 ### 2.3 明确不做（首期）
 
 - 「文生图 / 图像编辑」Tab 或第四维 `task` 切换。
-- Dataset 工作台内的配对浏览 / 拖拽对齐 UI（仍按 [#252](https://github.com/wochenlong/lora-scripts-next/issues/252)：训练页填路径即可）。
+- Dataset 工作台内的配对浏览 / 拖拽对齐 UI（训练页填路径即可；Klein 路径控件跟 Toolkit 前端做，配对可视化仍后置，见 [#252](https://github.com/wochenlong/lora-scripts-next/issues/252)）。
 - 为其它引擎单独做第二套前端目录布局（一律 AI Toolkit 多目录契约）。
 
 ---

@@ -12,7 +12,8 @@
 
 1. **开头必定是「训练用模型」**（选底模 / 填路径）。
 2. **结尾必定是「分布式训练」**（多卡 / 多机；引擎暂不支持也保留同名位，勿换别的结尾）。
-3. **取消「×× 专用参数」分区**，字段拆进对应格子，禁止插在数据集前面。
+3. **取消「×× 专用参数 / ×× 引擎专区」整块分区**，字段拆进对应格子，禁止插在数据集前面。
+4. **引擎专有参数不另开专区**：仍放进所属类别；控件**右上角**加小标识（如 `AI Toolkit` / `Musubi`），表示「仅该引擎读取 / 仅当前引擎有」。
 
 操作主路径对齐：
 
@@ -43,7 +44,7 @@
 
 ### 2.1 禁止
 
-- 禁止再出现「Anima 专用参数 / Flux 专用参数 / Krea 2 专用参数」这类插在数据集前的整块分区。
+- 禁止再出现「Anima 专用参数 / Flux 专用参数 / Krea 2 专用参数 / AI Toolkit 专区」这类**整块分区**（无论插在数据集前还是表单中部）。
 - 禁止把预览、日志、caption 等已独立任务塞回「其他」却仍占独立标题空壳。
 - 禁止用别的分区替换「分布式训练」作为表单结尾。
 
@@ -54,6 +55,21 @@
 | 类型开关（lokr、SDXL 预测类型、flux/chroma、klein `model_version`…） | **训练模型类型** |
 | timestep / shift / sigmoid / weighting / CFG / token 长度 | **训练过程** |
 | attn / compile / VAE chunk / offload / blocks_to_swap / fp8… | **省显存** |
+| 引擎独有且语义可归类者（如 Toolkit `quantize` / `low_vram` / `layer_offloading`） | **省显存**（或语义最贴的那一格），**不**另开引擎专区 |
+| 引擎独有且暂无处可归者 | **其他**，同样带引擎小标识 |
+
+### 2.3 引擎专有标识（字段级，非分区级）
+
+相对「新增 ×× 引擎专区」，约定改为：
+
+| 做法 | 说明 |
+|------|------|
+| **分散** | 专有参数放进 §2 表中所属分区，与通用项同列混排（同类内可把专有项靠后） |
+| **小标识** | 控件旁 **小圆点**，或 **小问号**；点击 / hover 说明「此为当前引擎专用参数」 |
+| **不进 TOC** | 标识不出现在左侧分区 TOC；不因「有几个专有项」就多出一个分区标题 |
+| **与 #300 配合** | 跨引擎同义项用统一 UI 词（无专有角标）；**语义仅某引擎有**的才打角标，避免「假统一」。**#300 不挡 3.1.0**，映射表实施可后置 |
+
+样式色值等由前端实施 PR 微调；交互原则以上表为准。详见 [`ai-toolkit-frontend-decisions.md`](./ai-toolkit-frontend-decisions.md)。
 
 ---
 
@@ -101,13 +117,15 @@ Musubi / AI Toolkit 的 CLI 或上游 UI 卡片顺序可以不同；**Next Train
 - 前端 TOC / i18n 分区标题与 schema `.description()` 一致
 - 无行为变更的纯顺序调整；默认值与校验语义保持不变
 
-验收：打开各训练入口，分区 TOC 顺序与上表一致；数据集紧跟模型路径区；无「×× 专用参数」；末格为分布式。
+验收：打开各训练入口，分区 TOC 顺序与上表一致；数据集紧跟模型路径区；无「×× 专用参数 / 引擎专区」整块；引擎独有字段落在所属格且带右上角小标识；末格为分布式。
 
 ---
 
 ## 6. 相关
 
 - [`image-edit-dataset-contract.md`](./image-edit-dataset-contract.md) — 图像编辑数据集前端契约（AI Toolkit 多目录格式；Musubi 同格式消费）
+- [#300](https://github.com/wochenlong/lora-scripts-next/issues/300) — UI 统一词 + 引擎映射表（同义项统一词；专有项角标）
+- [`ai-toolkit-frontend-decisions.md`](./ai-toolkit-frontend-decisions.md) — AI Toolkit 前端拍板（入口 / steps / 底模路径 / 草稿 / TOML 预览 / Klein 变体）
 - [`schema-form-single-column.md`](./schema-form-single-column.md) — 表单单列（布局，不改分区语义）
 - [`selector-feedback-and-draft-carryover.md`](./selector-feedback-and-draft-carryover.md) — 选择器与草稿携带
 - 团队分工：产品 IA [@wochenlong](https://github.com/wochenlong)；前端落地 [@IryNeko](https://github.com/IryNeko)；引擎侧字段映射 [@MikumikuDAIFans](https://github.com/MikumikuDAIFans)
