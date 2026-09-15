@@ -647,7 +647,7 @@ export default {
   about: {
     tagline: "A local trainer for the future — and for agents.",
     projectTitle: "About the Project",
-    projectDesc: "Next Trainer is a local trainer for the future — and for agents. It continues from the local-training experience pioneered in the Akegarasu lora-scripts ecosystem, and relies on kohya-ss/sd-scripts and related backends for training. It brings configuration, dataset prep, task management, and monitoring into one place. Dynamic forms are powered by {schemastery}.",
+    projectDesc: "Next Trainer is a local trainer for the future — and for agents (an independent project). It gratefully acknowledges the local-training UX lineage of Akegarasu/lora-scripts, and relies on kohya-ss/sd-scripts and related backends for training. It brings configuration, dataset prep, task management, and monitoring into one place. Dynamic forms are powered by {schemastery}.",
     lineageTitle: "Acknowledgements to Akegarasu",
     lineageDesc: "We thank Akegarasu and {akegarasu} (SD-Trainer) for years of open local-training WebUI and portable packaging work. Full credits are in the repository credits and NOTICE.",
     creditsTitle: "Open-Source Credits",

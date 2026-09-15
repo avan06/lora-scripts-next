@@ -647,7 +647,7 @@ export default {
   about: {
     tagline: "面向未来与 Agent 的本地训练器。",
     projectTitle: "关于项目",
-    projectDesc: "Next Trainer 是面向未来与 Agent 的本地训练器。它在 Akegarasu/lora-scripts 生态所奠定的本地训练体验之上继续演进，并依托 kohya-ss/sd-scripts 等训练后端，集中提供训练配置、数据集准备、任务管理和训练监控。动态表单由 {schemastery} 驱动。",
+    projectDesc: "Next Trainer 是面向未来与 Agent 的本地训练器（独立项目）。谱系上致谢 Akegarasu/lora-scripts 奠定的本地训练体验，并依托 kohya-ss/sd-scripts 等训练后端，集中提供训练配置、数据集准备、任务管理和训练监控。动态表单由 {schemastery} 驱动。",
     lineageTitle: "致谢 Akegarasu",
     lineageDesc: "我们感谢 Akegarasu 与 {akegarasu}（SD-Trainer / 秋叶一键训练包）长期公开的本地训练 WebUI 与整合包实践。完整致谢见仓库 credits 与 NOTICE。",
     creditsTitle: "开源致谢与引用",
