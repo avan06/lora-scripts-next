@@ -5,6 +5,10 @@
 ---
 ## 未发布（dev）
 
+### 清理
+
+- **移除 legacy Gradio `dataset-tag-editor`**：删除 Git 子模块与 `:28001` 代理；数据集标签编辑仅保留 Vue 自研 `/dataset/editor`。旧 URL `/tageditor.html` 重定向到自研编辑器。
+
 ---
 ## v3.1.0 — 2026-09-14
 
