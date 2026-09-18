@@ -7,7 +7,7 @@ export interface ReleaseEntry {
 export const releases: readonly ReleaseEntry[] = [
   {
     version: "v3.1.0",
-    date: "2026-09-14",
+    date: "2026-09-18",
     items: [
       "Anima Fast v1.17.1：Anima 2.9B、T-LoRA 与训练安全门禁",
       "统一训练引擎注册表，并新增 AI Toolkit / Klein 支持",
