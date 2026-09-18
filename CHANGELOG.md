@@ -30,7 +30,7 @@
 ### 修复
 
 - **全新安装假报成功（#319）**：`install-cn.ps1` / `install.ps1` 不再在空 venv 上打印「安装完成」；升级 pip、探测 `--resume-retries`，安装结束检查 `import torch`，源码启动在无 torch 时拒绝进入 GUI
-- **TOML 子集静默漏训（#332）**：提交带 `dataset_config` 时不再自动把 `train_data_dir` 里的散图搬进 `N_xxx/`；空子集会直接拒绝开训，而不是让 sd-scripts 跳过仍显示训练成功
+- **TOML 子集静默漏训（#332）**：提交带 `dataset_config` 时不再自动把 `train_data_dir` 里的散图搬进 `N_xxx/`；空子集会直接拒绝开训，而不是让 sd-scripts 跳过仍显示训练成功；`num_repeats < 1` 与重复的 `image_dir` / `metadata_file` 子集同样在提交时拒绝
 - **整合包 Git 更新收走用户数据（#356 / #358）**：停止自动 `stash -u`，快进后补齐旧包缺失的跟踪文件；新包使用完整浅克隆。已被旧更新器收进 stash 的数据不自动弹出，见 [恢复说明](https://github.com/wochenlong/lora-scripts-next/issues/356)
 - 修复 Accelerate 多 GPU 启动参数拆分
 - 修复 LyCORIS / LoKr dtype 与权重合并问题
