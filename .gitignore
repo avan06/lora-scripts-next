@@ -1,3 +1,4 @@
+.vs
 .vscode
 .idea
 
@@ -10,6 +11,8 @@ output/*
 outputs/
 
 .tmp/
+.runtime/
+tmp/
 
 scripts/dev/configs/
 

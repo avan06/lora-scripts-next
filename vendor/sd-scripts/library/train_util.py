@@ -2827,6 +2827,35 @@ class ControlNetDataset(BaseDataset):
         for i, info in enumerate(batch):
             single_cond_latents = info.latents
             single_cond_latents_flipped = info.latents_flipped
+
+            # Disk caching deliberately does not retain the encoded tensor on
+            # ImageInfo. Conditioning caching still needs that tensor below
+            # to assemble one or more reference latents, so read back the NPZ
+            # that was just written before restoring the target-image fields.
+            if caching_strategy.cache_to_disk and single_cond_latents is None:
+                cond_latents_npz = info.latents_npz
+                if not cond_latents_npz:
+                    raise RuntimeError(
+                        f"conditioning latent cache path was not set: {info.absolute_path}"
+                    )
+                (
+                    disk_latents,
+                    _,
+                    _,
+                    disk_flipped_latents,
+                    _,
+                ) = caching_strategy.load_latents_from_disk(
+                    cond_latents_npz,
+                    info.bucket_reso,
+                )
+                if disk_latents is None:
+                    raise RuntimeError(
+                        f"conditioning latent cache did not contain latents: {cond_latents_npz}"
+                    )
+                single_cond_latents = torch.as_tensor(disk_latents)
+                if disk_flipped_latents is not None:
+                    single_cond_latents_flipped = torch.as_tensor(disk_flipped_latents)
+
             info.absolute_path = orig_paths[i]
             info.latents_npz = orig_npz_paths[i]
             info.latents = orig_latents[i]

@@ -13,7 +13,7 @@ Schema.intersect([
 
     Schema.intersect([
         Schema.object({
-            edit_reference_layout: Schema.union(["单张参考图", "双张参考图"]).default("单张参考图").description("参考图布局。单张：reference/ 下与 target 同名一张（如 target/foo.png → reference/foo.png）；双张：reference/<文件名>/ 下放 2 张"),
+            edit_reference_layout: Schema.union(["单张参考图", "双张参考图"]).default("双张参考图").description("参考图布局。单张：reference/ 下与 target 同名一张（如 target/foo.png → reference/foo.png）；双张：reference/<文件名>/ 下放 2 张"),
             target_data_dir: Schema.string().role('filepicker', { type: "folder", internal: "train-dir" }).description("目标图目录（Target）。放目标图片和同名 txt / json 标签"),
             conditioning_data_dir: Schema.string().role('filepicker', { type: "folder", internal: "train-dir" }).description("参考图根目录（Reference）"),
         }).description("图像编辑数据集与预览"),

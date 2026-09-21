@@ -1257,6 +1257,9 @@ class NetworkTrainer:
                 args.max_train_steps > initial_step
             ), f"max_train_steps should be greater than initial step / max_train_stepsは初期ステップより大きい必要があります: {args.max_train_steps} vs {initial_step}"
 
+        # Keep the absolute optimizer step for logging/checkpoint/sample bookkeeping.
+        resume_global_step = initial_step
+
         epoch_to_start = 0
         if initial_step > 0:
             if args.skip_until_initial_step:
@@ -1269,13 +1272,13 @@ class NetworkTrainer:
                 initial_step *= args.gradient_accumulation_steps
 
                 # set epoch to start to make initial_step less than len(train_dataloader)
-                epoch_to_start = initial_step // math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
+                epoch_to_start = initial_step // len(train_dataloader)
             else:
                 # if not, only epoch no is skipped for informative purpose
                 epoch_to_start = initial_step // math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
                 initial_step = 0  # do not skip
 
-        global_step = 0
+        global_step = resume_global_step
 
         noise_scheduler = self.get_noise_scheduler(args, accelerator.device)
 
@@ -1337,14 +1340,13 @@ class NetworkTrainer:
         is_tracking = len(accelerator.trackers) > 0
         if is_tracking:
             # log empty object to commit the sample images to wandb
-            accelerator.log({}, step=0)
+            accelerator.log({}, step=global_step)
 
         # training loop
         if initial_step > 0:  # only if skip_until_initial_step is specified
             for skip_epoch in range(epoch_to_start):  # skip epochs
                 logger.info(f"skipping epoch {skip_epoch+1} because initial_step (multiplied) is {initial_step}")
                 initial_step -= len(train_dataloader)
-            global_step = initial_step
 
         # log device and dtype for each model
         logger.info(f"unet dtype: {unet_weight_dtype}, device: {unet.device}")
@@ -1358,7 +1360,7 @@ class NetworkTrainer:
         clean_memory_on_device(accelerator.device)
 
         progress_bar = tqdm(
-            range(args.max_train_steps - initial_step), smoothing=0, disable=not accelerator.is_local_main_process, desc="steps"
+            range(args.max_train_steps - global_step), smoothing=0, disable=not accelerator.is_local_main_process, desc="steps"
         )
 
         validation_steps = (
@@ -1489,6 +1491,13 @@ class NetworkTrainer:
                 if accelerator.sync_gradients:
                     progress_bar.update(1)
                     global_step += 1
+
+                    # Release unused blocks held by the CUDA caching allocator at a
+                    # low-frequency, optimizer-step boundary. This does not free live
+                    # tensors and deliberately avoids running on accumulation steps.
+                    cuda_cache_clear_interval = 20
+                    if global_step % cuda_cache_clear_interval == 0:
+                        clean_memory_on_device(accelerator.device)
 
                     optimizer_eval_fn()
                     self.sample_images(
@@ -1710,6 +1719,10 @@ class NetworkTrainer:
             self.sample_images(accelerator, args, epoch + 1, global_step, accelerator.device, vae, tokenizers, text_encoder, unet)
             progress_bar.unpause()
             optimizer_train_fn()
+
+            # Epoch transitions are natural low-frequency cleanup points, especially
+            # after validation, sampling, and checkpoint serialization.
+            clean_memory_on_device(accelerator.device)
 
             # end of epoch
 
