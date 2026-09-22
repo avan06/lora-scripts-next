@@ -14,21 +14,30 @@
   <a href="README.md">English</a>
 </p>
 
-![Next Trainer 训练工作台：Anima 2.9B 与 Anima Fast 环境已就绪](assets/readme/vue3/02-training-anima-fast-29b-ready.png)
+![Next Trainer 训练工作台：使用 DiffSynth 引擎训练 Qwen-Image-2.1 LoRA](assets/readme/vue3/02-training-qwen-image-21-diffsynth.png)
 
-Anima 2.9B 模型与 Anima Fast 训练环境已经就绪，左侧配置训练，右侧查看 TOML。[查看完整界面导览](docs/interface-tour.md)。
+使用 DiffSynth 引擎训练 Qwen-Image-2.1 LoRA，左侧配置训练，右侧查看 TOML。[从零开始训练 Qwen-Image-2.1](docs/diffsynth.md) · [查看完整界面导览](docs/interface-tour.md)。
 
-## 3.1.0 更新了什么
+## 3.1.1 更新了什么
 
-- **Anima Fast**：支持 Anima 2.9B 与 T-LoRA，使用独立训练环境。
-- **多引擎统一管理**：在同一工作台中管理和使用 Kohya、Anima Fast、Musubi 与 AI Toolkit。
+- **DiffSynth / Qwen-Image-2.1**：支持 BF16 文生图 LoRA 训练，提供独立引擎环境、图片 + TXT 数据集和训练中预览；图像编辑训练尚未开放。
+- **Anima Fast**：继续支持 Anima 2.9B 与 T-LoRA，使用独立训练环境。
+- **多引擎统一管理**：在同一工作台中管理和使用 Kohya、Anima Fast、Musubi、AI Toolkit 与 DiffSynth。
 - **训练流程更顺畅**：改进任务管理、配置导入和训练步数 / epoch 处理。
 
-[完整更新日志](CHANGELOG.md) · [Anima Fast 使用指南](docs/anima-fast.md)
+[完整更新日志](CHANGELOG.md) · [Qwen-Image-2.1 入门教程](docs/diffsynth.md) · [Anima Fast 使用指南](docs/anima-fast.md)
+
+## 支持的训练引擎
+
+**Kohya · Anima Fast · Musubi · AI Toolkit · DiffSynth-Studio**
+
+Kohya 为内置引擎，其余可在 **设置 → 训练引擎** 中按需下载安装，再到训练页选择对应引擎。可用引擎以所用训练器版本为准；接入引擎不代表已经支持其上游的全部模型和功能。
+
+训练 Qwen-Image-2.1 时，选择 **DiffSynth-Studio → LoRA**。目前支持 **BF16 文生图训练**，图像编辑训练尚未开放。
 
 ## 支持的模型
 
-**Anima · SD 1.5 · SDXL · Flux · FLUX.2 Klein · Krea 2**
+**Qwen-Image-2.1 · Anima · SD 1.5 · SDXL · Flux · FLUX.2 Klein · Krea 2**
 
 不同模型支持的训练目标、硬件要求和引擎安装方式有所区别，详见[模型与训练指南](docs/README.md#training--训练)。
 
@@ -36,9 +45,9 @@ Anima 2.9B 模型与 Anima Fast 训练环境已经就绪，左侧配置训练，
 
 **Windows 用户**：推荐[下载整合包](https://github.com/wochenlong/lora-scripts-next/releases)，解压后使用包内启动脚本。需要 NVIDIA 显卡，详细步骤和包型区别见[快速开始](docs/getting-started.md)。
 
-**版本说明**：3.1.0 源码已进入 `main`；当前已发布的整合包仍为 **v3.0.0**，下载该包不包含 3.1.0 更新。新整合包以 Releases 发布为准。
+**版本说明**：3.1.1 源码已进入 `main`。整合包有单独的发布进度，请以 Releases 中的版本号和更新说明为准；旧整合包不一定包含 DiffSynth 与 Qwen-Image-2.1 支持。
 
-想使用 3.1.0 源码版本，或在 Linux 上运行？请看[从源码运行](docs/getting-started.md#从源码运行)。
+想使用 3.1.1 源码版本，或在 Linux 上运行？请看[从源码运行](docs/getting-started.md#从源码运行)。
 
 ---
 

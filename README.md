@@ -14,21 +14,30 @@
   <a href="README-zh.md">中文</a>
 </p>
 
-![Next Trainer training workspace with Anima 2.9B and Anima Fast ready](assets/readme/vue3/02-training-anima-fast-29b-ready.png)
+![Qwen-Image-2.1 LoRA training with the DiffSynth engine in Next Trainer](assets/readme/vue3/02-training-qwen-image-21-diffsynth.png)
 
-Anima 2.9B and the Anima Fast environment are ready, with training configuration and TOML preview side by side. [Explore the workspace](docs/interface-tour.md).
+Train Qwen-Image-2.1 LoRA with the DiffSynth engine, with training configuration and TOML preview side by side. [Qwen-Image-2.1 beginner's guide (Chinese)](docs/diffsynth.md) · [Explore the workspace](docs/interface-tour.md).
 
-## What's new in 3.1.0
+## What's new in 3.1.1
 
-- **Anima Fast:** train Anima 2.9B and T-LoRA with a dedicated runtime.
-- **Multiple engines, one workspace:** manage Kohya, Anima Fast, Musubi, and AI Toolkit from the same interface.
+- **DiffSynth / Qwen-Image-2.1:** BF16 text-to-image LoRA training with an isolated engine environment, image + TXT datasets, and previews during training. Image-edit training is not yet supported.
+- **Anima Fast:** continue to train Anima 2.9B and T-LoRA with a dedicated runtime.
+- **Multiple engines, one workspace:** manage Kohya, Anima Fast, Musubi, AI Toolkit, and DiffSynth from the same interface.
 - **Smoother training workflows:** improved task management, configuration imports, and step/epoch handling.
 
-[Full changelog](CHANGELOG.md) · [Anima Fast guide](docs/anima-fast.md)
+[Full changelog](CHANGELOG.md) · [Qwen-Image-2.1 guide (Chinese)](docs/diffsynth.md) · [Anima Fast guide](docs/anima-fast.md)
+
+## Supported training engines
+
+**Kohya · Anima Fast · Musubi · AI Toolkit · DiffSynth-Studio**
+
+Kohya is built in. Install the optional engines from **Settings → Training engines**, then select the appropriate engine on the training page. Available engines depend on your trainer version; not every model or feature supported upstream is integrated here.
+
+For Qwen-Image-2.1, select **DiffSynth-Studio → LoRA**. Current support is **BF16 text-to-image training**, not image-edit training.
 
 ## Supported models
 
-**Anima · SD 1.5 · SDXL · Flux · FLUX.2 Klein · Krea 2**
+**Qwen-Image-2.1 · Anima · SD 1.5 · SDXL · Flux · FLUX.2 Klein · Krea 2**
 
 Training targets, hardware requirements, and optional engine installation vary by model. See the [training guides](docs/README.md#training--训练).
 
@@ -36,9 +45,9 @@ Training targets, hardware requirements, and optional engine installation vary b
 
 **Windows users:** [download a portable package](https://github.com/wochenlong/lora-scripts-next/releases), extract it, and use the included launcher. An NVIDIA GPU is required; see [setup and package selection](docs/getting-started.en.md).
 
-**Release status:** 3.1.0 source is on `main`; the published portable release is still **v3.0.0**. Downloading that archive does not include the 3.1.0 updates. See Releases for package availability.
+**Release status:** 3.1.1 source is on `main`. Portable packages have their own release schedule; check the version and release notes on Releases. Older packages may not include DiffSynth or Qwen-Image-2.1 support.
 
-For the 3.1.0 source version or Linux setup, follow [run from source](docs/getting-started.en.md#from-source).
+For the 3.1.1 source version or Linux setup, follow [run from source](docs/getting-started.en.md#from-source).
 
 ---
 
