@@ -6,6 +6,16 @@ export interface ReleaseEntry {
 
 export const releases: readonly ReleaseEntry[] = [
   {
+    version: "v3.1.1",
+    date: "2026-09-22",
+    items: [
+      "新增 DiffSynth 引擎，支持 Qwen-Image-2.1 BF16 文生图 LoRA",
+      "支持 Comfy-Org 模型组件、图片与 TXT 标注及子目录重复次数",
+      "支持 TE/VAE 缓存、CPU 卸载、分桶及训练中预览",
+      "完成 RTX 4090 短训与独立 ComfyUI LoRA 回载出图验证",
+    ],
+  },
+  {
     version: "v3.1.0",
     date: "2026-09-18",
     items: [

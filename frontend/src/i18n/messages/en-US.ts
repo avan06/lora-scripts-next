@@ -615,7 +615,7 @@ export default {
     moreChangelog: "More changelog…",
   },
   home: {
-    heroTitle: "Next Trainer 3.1.0",
+    heroTitle: "Next Trainer 3.1.1",
     heroSubtitle: "Anima Fast, AI Toolkit, the plugin marketplace, and task workflows move forward together.",
     startTraining: "Configure Training",
     readGuide: "Read the Guide",

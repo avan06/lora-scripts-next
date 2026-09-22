@@ -615,7 +615,7 @@ export default {
     moreChangelog: "查看更多更新日志…",
   },
   home: {
-    heroTitle: "Next 训练器 3.1.0",
+    heroTitle: "Next 训练器 3.1.1",
     heroSubtitle: "Anima Fast、AI Toolkit、插件市场与任务工作台完成新一轮更新。",
     startTraining: "开始配置训练",
     readGuide: "阅读使用指南",
