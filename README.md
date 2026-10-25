@@ -29,15 +29,15 @@ A **100-step style LoRA test** by [KohakuBlueleaf](https://github.com/KohakuBlue
 - **MOSS-Image:** MOSS-Image LoRA training is available with Kohya as the recommended/default engine and `anima_lora` as an optional secondary path.
 - **AI Toolkit and Ideogram 4:** AI Toolkit training and an Ideogram 4 LoRA entry are available as optional engines and are not force-installed.
 - **Plugin marketplace:** the currently empty marketplace is hidden from users and skipped by default, so its unused dependencies are not downloaded.
-- **3.3.0-dev portable package:** a sub-2 GB lite package includes the base runtime, frontend, WD tagger model, and offline tokenizer assets without preinstalling Kohya.
+- **3.3.1-dev portable package:** a sub-2 GB lite package includes the base runtime, frontend, WD tagger model, and offline tokenizer assets without preinstalling Kohya.
 
 [Full changelog](CHANGELOG.md)
 
 ## Get started
 
-**Windows users:** download the current [Next-Trainer-v3.3.0-dev-lite.7z](https://github.com/wochenlong/lora-scripts-next/releases/download/v3.3.0-dev/Next-Trainer-v3.3.0-dev-lite.7z), extract it, and use the included launcher. It contains the base runtime, frontend, WD tagger model, and offline tokenizer assets. Kohya is not preinstalled, and the empty plugin marketplace is not downloaded; install a training engine from **Settings → Training engines** when needed. An NVIDIA GPU is required; see [setup and package selection](docs/getting-started.en.md).
+**Windows users:** download the current [Next-Trainer-v3.3.1-dev-lite.7z](https://github.com/wochenlong/lora-scripts-next/releases/download/v3.3.1-dev/Next-Trainer-v3.3.1-dev-lite.7z), extract it, and use the included launcher. It contains the base runtime, frontend, WD tagger model, and offline tokenizer assets. Kohya is not preinstalled, and the empty plugin marketplace is not downloaded; install a training engine from **Settings → Training engines** when needed. An NVIDIA GPU is required; see [setup and package selection](docs/getting-started.en.md).
 
-**Release status:** the recommended portable package is `3.3.0-dev`. The larger preinstalled-Kohya package is distributed separately from GitHub Releases; the empty plugin marketplace is hidden from users and skipped by default during builds.
+**Release status:** the recommended portable package is `3.3.1-dev`. The larger preinstalled-Kohya package is distributed separately from GitHub Releases; the empty plugin marketplace is hidden from users and skipped by default during builds.
 
 For the latest source version or Linux setup, follow [run from source](docs/getting-started.en.md#from-source).
 
