@@ -29,15 +29,15 @@
 - **MOSS-Image**：新增 MOSS-Image LoRA 训练，默认推荐 Kohya，`anima_lora` 作为次选路径。
 - **AI Toolkit 与 Ideogram 4**：加入 AI Toolkit 训练引擎和 Ideogram 4 LoRA 入口，按需安装，不强制下载可选引擎环境。
 - **插件市场调整**：当前没有可用插件内容，已从用户界面和默认构建中隐藏，也不会强制下载空的 marketplace 依赖。
-- **3.3.0-dev 整合包**：提供小于 2 GB 的 lite 包，包含基础运行环境、前端、WD 打标模型和离线 tokenizer，不预装 Kohya。
+- **3.3.1-dev 整合包**：提供小于 2 GB 的 lite 包，包含基础运行环境、前端、WD 打标模型和离线 tokenizer，不预装 Kohya。
 
 [完整更新日志](CHANGELOG.md)
 
 ## 开始使用
 
-**Windows 用户**：推荐直接下载当前整合包 [Next-Trainer-v3.3.0-dev-lite.7z](https://github.com/wochenlong/lora-scripts-next/releases/download/v3.3.0-dev/Next-Trainer-v3.3.0-dev-lite.7z)，解压后使用包内启动脚本。该包包含基础运行环境、前端、WD 打标模型和离线 tokenizer，不预装 Kohya，也不会下载空的插件市场依赖；首次训练时可在 **设置 → 训练引擎** 按需安装引擎。需要 NVIDIA 显卡，详细步骤和包型区别见[快速开始](docs/getting-started.md)。
+**Windows 用户**：推荐直接下载当前整合包 [Next-Trainer-v3.3.1-dev-lite.7z](https://github.com/wochenlong/lora-scripts-next/releases/download/v3.3.1-dev/Next-Trainer-v3.3.1-dev-lite.7z)，解压后使用包内启动脚本。该包包含基础运行环境、前端、WD 打标模型和离线 tokenizer，不预装 Kohya，也不会下载空的插件市场依赖；首次训练时可在 **设置 → 训练引擎** 按需安装引擎。需要 NVIDIA 显卡，详细步骤和包型区别见[快速开始](docs/getting-started.md)。
 
-**版本说明**：当前推荐整合包版本为 `3.3.0-dev`。预装 Kohya 的大体积包单独发布，不放在 GitHub Release；插件市场当前没有可用内容，已从用户界面和默认构建中隐藏。
+**版本说明**：当前推荐整合包版本为 `3.3.1-dev`。预装 Kohya 的大体积包单独发布，不放在 GitHub Release；插件市场当前没有可用内容，已从用户界面和默认构建中隐藏。
 
 想使用最新源码或在 Linux 上运行？请看[从源码运行](docs/getting-started.md#从源码运行)。
 
