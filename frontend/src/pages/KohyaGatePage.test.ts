@@ -20,7 +20,7 @@ const status = vi.mocked(enginesApi.status)
 const ready: EngineStatus = { id: "kohya", state: "ready", featureEnabled: true }
 const installing: EngineStatus = { id: "kohya", state: "installing", featureEnabled: true }
 const notInstalled: EngineStatus = { id: "kohya", state: "not_installed", featureEnabled: true }
-const broken: EngineStatus = { id: "kohya", state: "broken", featureEnabled: true, reason: "环境已变化，请修复后重新检查。" }
+const broken: EngineStatus = { id: "kohya", state: "broken", featureEnabled: true, message: "环境已变化，请修复后重新检查。" }
 
 const trainingPageStub = {
   template: '<div class="training-page-stub"><slot name="form-top" /></div>',

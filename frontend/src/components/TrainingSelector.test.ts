@@ -50,7 +50,7 @@ it("keeps unsupported engines disabled and explains the two reasons apart (#443)
   expect(unsupported.map((option) => option.text().split(" · ")[0])).toContain("DiffSynth-Studio")
 
   const hints = wrapper.findAll(".selector-hint").map((hint) => hint.text())
-  expect(hints.some((text) => text.includes("该模型暂不支持"))).toBe(true)
+  expect(hints.some((text) => text.includes("不支持当前模型"))).toBe(true)
   expect(hints.some((text) => text.includes("尚未安装或需要修复"))).toBe(true)
   wrapper.unmount()
 })
