@@ -32,3 +32,12 @@ def test_kohya_audit_checks_scipy():
 
     source = audit_environment.__code__.co_consts
     assert any("scipy" in value for value in source if isinstance(value, str))
+
+
+def test_main_requirements_include_uv_for_managed_engine_installs():
+    root = Path(__file__).resolve().parents[1]
+    reqs = [
+        line.strip().split("#", 1)[0].strip()
+        for line in (root / "requirements.txt").read_text(encoding="utf-8-sig").splitlines()
+    ]
+    assert any(item == "uv" or item.startswith(("uv=", "uv>", "uv<")) for item in reqs if item)
